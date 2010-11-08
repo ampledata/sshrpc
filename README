@@ -1,0 +1,273 @@
+Help on class SSHRPC in module sshrpc:
+
+class SSHRPC(__builtin__.object)
+ |  Create and manage a SSH session to a (remote?) host.
+ |      
+ |  Description
+ |  ===========
+ |      When used this object will establish an SSH session to a host. Once the
+ |      session is established methods within this object can be called that allow
+ |      remote command execution, copying of files, and so on.
+ |  
+ |      
+ |  Notes
+ |  =====
+ |      1. This class has been tested and is known to work on: Linux, Solaris, Mac OS X (Darwin),
+ |      FreeBSD and AIX. Windows, via cygwin, has been tested, but not extensively.
+ |      2. It is not necessary that the 'remote' host be remote at all, in fact, loopback
+ |      support is easy:
+ |  
+ |      >>> import os, pwd
+ |      >>> my_login = pwd.getpwuid(os.getuid())[0]
+ |      >>> my_identity = os.path.join(os.path.expanduser('~'),'.ssh','id_dsa')
+ |      >>> my_box = SSHRPC(host='localhost',login=my_login,identity=my_identity)
+ |      >>> print my_box
+ |      localhost
+ |  
+ |      3. To test this module with doctest try: python SSHRPC.py -v
+ |      4. To test this module with py.test try: py.test mambo/tests/test_SSHRPC.py
+ |      
+ |  Example & Test
+ |  ==============
+ |      See also: method docstrings.
+ |      >>> my_box = SSHRPC()
+ |      >>> my_box
+ |      localhost
+ |      >>> my_box.execute(cmd='true')
+ |      0
+ |      >>> pipes = {}
+ |      >>> my_box.execute(cmd='hostname',pipes=pipes)
+ |      0
+ |      >>> my_box.execute(cmd='echo hi',pipes=pipes)
+ |      0
+ |      >>> print pipes['stdout'].rstrip()
+ |      hi
+ |      
+ |  Extending
+ |  =========
+ |      gba@20090520 It is my hope that only basic system commands be added as methods
+ |      to SSHRPC. Dramatic remote system procedures, such as setting up or controlling
+ |      software (like Splunk) should be written into sublcasses of SSHRPC.
+ |      Please try to keep SSHRPC as stable and static as possible.
+ |  
+ |  Methods defined here:
+ |  
+ |  __del__(self)
+ |      Wrapper for SSHRPC.disconnect()
+ |  
+ |  __init__(self, host='localhost', login='', identity='', master=False)
+ |  
+ |  __nonzero__(self)
+ |      Wrapper for SSHRPC.connect()
+ |  
+ |  __repr__(self)
+ |      Return the hostname as a representation of this object.
+ |  
+ |  __str__(self)
+ |      Return the hostname if the object is referenced as a string.
+ |  
+ |  connect(self)
+ |      Connect to the host via SSH.
+ |      
+ |      Usage
+ |      =====
+ |      Returns: (bool) True if the connection can be established, False if it can't.
+ |      Required: n/a
+ |      Optional: n/a
+ |      
+ |      Test
+ |      ====
+ |          >>> SSHRPC()
+ |          localhost
+ |          >>> SSHRPC().connect()
+ |          True
+ |  
+ |  disconnect(self)
+ |      Attempt to tear down (close) the ssh session to the (remote) host.
+ |      TODO gba@20090605 add doctest.
+ |  
+ |  execute(self, cmd, dir='', pipes=None, env={}, ssh_args='', expected_return=0, timeout=0)
+ |      Execute a command on the remote host, return std[err|out] and exit code.
+ |      Use this method instead of SSHRPC._exec().
+ |      
+ |      Returns: Depends.
+ |      Required: cmd
+ |        cmd=(str) The command to be run on the remote host.
+ |      Optional: remote_dir,stdout,stderr,std,env,pipes, ssh_args,timeout
+ |        remote_dir=(str) Directory to cd to before running cmd.
+ |        timeout=(int) Number of seconds to wait for command to execute before terminating. (default = 0 (no timeout)
+ |        ssh_args=(str) Extra flags to pass to this particular ssh command, separate
+ |                           from the flags contained in self.ssh_args.
+ |        others TK
+ |      
+ |      Test
+ |      ====
+ |          >>> my_box = SSHRPC()
+ |          >>> my_pipes = {}
+ |          >>> if my_box:
+ |          ...     my_box.execute( "echo -n hi", pipes=my_pipes)
+ |          0
+ |          >>> if my_box:
+ |          ...     my_pipes
+ |          {'stderr': '', 'stdout': 'hi'}
+ |          >>> if my_box:
+ |          ...     my_box.execute( "tacoburritosalsa", pipes=my_pipes, expected_return=127 )
+ |          127
+ |          >>> if my_box:
+ |          ...     my_pipes
+ |          {'stderr': 'bash: tacoburritosalsa: command not found\n', 'stdout': ''}
+ |  
+ |  file_copy(self, src, dest)
+ |  
+ |  file_retrieve(self, source, dest)
+ |  
+ |  func_distro(self)
+ |      Get the lsb_release distro name.
+ |      This method is only useful for discovering Linux distribution types, otherwise
+ |      it will return a mostly useless dictionary.
+ |      
+ |      Returns: (dict) Dictionary of lsb_release parameters on success, empty dict on fail.
+ |          e.g: Success={'linux':'', 'description':'', 'release':''}
+ |          e.g: Fail={}
+ |      Required: n/a
+ |      Optional: n/a
+ |  
+ |  func_home(self)
+ |      Get our home directory on the system and set self.home to this dir.
+ |      
+ |      Test
+ |      ====
+ |          >>> my_box = SSHRPC()
+ |          >>> if my_box.func_home(): True
+ |          True
+ |          >>> if my_box.home: True
+ |          True
+ |      
+ |      Operation
+ |      =========
+ |          @return: Home directory on success, empty string on failure.
+ |          @rtype: string
+ |  
+ |  func_platform(self)
+ |      Get the OS and Architecture of the remote system.
+ |      
+ |      Returns: (dict) Dictionary of OS and Architecture on success, empty dictionary on failure.
+ |        e.g.: Success={'hostOS':'','hostArch':''}
+ |        e.g.: Fail={}
+ |      Required: n/a
+ |      Optional: n/a
+ |      
+ |      Example & Test
+ |      ==============
+ |      >>> my_box = SSHRPC()
+ |      >>> if my_box:
+ |      ...     if my_box.func_platform(): True
+ |      True
+ |      >>> if my_box:
+ |      ...     if my_box.func_platform()['hostOS']: True
+ |      True
+ |      >>> if my_box:
+ |      ...     if my_box.func_platform()['hostArch']: True
+ |      True
+ |      >>> if my_box:
+ |      ...     if my_box.func_platform()['hostOS'] == my_box.uname('-s'): True
+ |      True
+ |      >>> if my_box:
+ |      ...     if 'hostOS' in my_box.platform: True
+ |      True
+ |  
+ |  path_abspath(self, path)
+ |  
+ |  path_exists(self, path)
+ |  
+ |  path_join(self, *args)
+ |  
+ |  python(self, program)
+ |  
+ |  rsync(self, local, remote='', reverse=False)
+ |      Sync the contents of the local to remote using rsync
+ |      or from remote to local if reverse=True.
+ |      
+ |      Usage
+ |      =====
+ |      Returns: (bool) True on success, False on failure.
+ |      Required: local
+ |          local: (str) Full or relative path to the file or directories to be rsync'd.
+ |      Optional: remote
+ |          remote: (str) Full or relative path to the destination directory. (default='')
+ |          reverse: (bool) if false syncs from local to remote, if true, syncs from remote to local
+ |      
+ |      Notes
+ |      =====
+ |      1. If syncing from local to remote, remote will be created as a directory, if it does not already exist.
+ |      2. If syncing from remote to local, local will be created as a directory, if it does not already exist
+ |      3. to copy the contents of a dir, append the dir with a slash '/'
+ |      
+ |      Example
+ |      =======
+ |      A. This will copy /etc/hosts from the local machine to /usr/local/etc/hosts on the remote machine.
+ |          SSHRPC.rsync(local='/etc/hosts',remote='/usr/local/etc')
+ |      B. This will copy /etc/local/etc/hosts from the remote machine to /etc/hosts on the local machine (reverse of the above command)
+ |          SSHRPC.rsync(local='/etc', remote='/usr/local/etc/hosts', reverse=True)
+ |      
+ |      Test
+ |      ====
+ |          >>> from random import choice
+ |          >>> random_dir_name = ''.join([choice('doctest0123456789') for i in range(8)])
+ |          >>> my_box = SSHRPC()
+ |          >>> my_box.rsync( local='/etc/resolv.conf', remote=random_dir_name )
+ |          True
+ |          >>> my_box.path_exists( my_box.path_join( random_dir_name, 'resolv.conf' ) )
+ |          True
+ |          >>> my_box.rsync( local=random_dir_name, remote=os.path.join(random_dir_name, 'resolv.conf'), reverse=True )
+ |          True
+ |          >>> os.path.exists( os.path.join( random_dir_name, 'resolv.conf' ) )
+ |          True
+ |  
+ |  shesc(self, rstr)
+ |  
+ |  uname(self, options='-a')
+ |      Get the uname of the remote system.
+ |      If called without any options will return the full (uname -a) output.
+ |      
+ |      Returns: (str) The uname output on success, empty string on failure.
+ |      Required: n/a
+ |      Optional: options
+ |          options: (str) list of options to pass to remote uname (default = '-a')
+ |      
+ |      Example & Test
+ |      ==============
+ |      >>> my_box = SSHRPC()
+ |      >>> if my_box:
+ |      ...     if my_box.uname(): True
+ |      True
+ |      >>> if my_box:
+ |      ...     if my_box.uname(options='-s'): True
+ |      True
+ |  
+ |  ----------------------------------------------------------------------
+ |  Data descriptors defined here:
+ |  
+ |  __dict__
+ |      dictionary for instance variables (if defined)
+ |  
+ |  __weakref__
+ |      list of weak references to the object (if defined)
+ |  
+ |  ----------------------------------------------------------------------
+ |  Data and other attributes defined here:
+ |  
+ |  consoleLogger = <logging.StreamHandler instance at 0x3e1350>
+ |  
+ |  consoleLoggerFormat = <logging.Formatter instance at 0x3e1328>
+ |  
+ |  fileLogger = <logging.FileHandler instance at 0x3e1878>
+ |  
+ |  fileLoggerFormat = <logging.Formatter instance at 0x3e18a0>
+ |  
+ |  logger = <logging.Logger instance at 0x3bc0d0>
+ |  
+ |  sysLogger = <logging.handlers.SysLogHandler instance at 0x3e1288>
+ |  
+ |  sysLoggerFormat = <logging.Formatter instance at 0x3e1828>
+
