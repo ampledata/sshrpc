@@ -15,7 +15,7 @@ History
 Created by Greg Albrecht (gba@splunk.com).
 Copyright 2010 Splunk, Inc. All rights reserved.
 """
-__version__ = '$Id: //splunk/current/test/lib/sshrpc/__init__.py#2 $'
+__version__ = '$Id: //splunk/current/test/lib/sshrpc/__init__.py#3 $'
 __author__  = '$Author: gba $'
 __license__ = 'Copyright 2010 Splunk, Inc.'
 
@@ -144,7 +144,7 @@ class SSHRPC(object):
         return self.host
     
     
-    def _exec( self, cmd, pipes=None, shell=False, timeout=0 ):
+    def _exec( self, cmd, pipes={}, shell=False, timeout=0 ):
         """PRIVATE - Execute a command on a host.
         README: Do not call this function directly, instead use SSHRPC.execute().
         
@@ -153,10 +153,10 @@ class SSHRPC(object):
             >>> my_box = SSHRPC()
             >>> my_box
             localhost
-            >>> my_box.execute( 'sleep 11;echo hi', timeout=9) #doctest: +IGNORE_EXCEPTION_DETAIL
+            >>> my_box.execute( 'sleep 11;echo hi', timeout=9, pipes=None ) #doctest: +IGNORE_EXCEPTION_DETAIL
             Traceback (most recent call last):
             Exception: 'Command did not return 0.'
-            >>> my_box.execute( 'sleep 7;echo hello', timeout=9)
+            >>> my_box.execute( 'sleep 7;echo hello', timeout=9 )
             0
             >>>
         
@@ -209,7 +209,7 @@ class SSHRPC(object):
             return po.wait()
     
     
-    def execute( self, cmd, dir='', pipes=None, env={}, ssh_args='', expected_return=0, timeout=0 ):
+    def execute( self, cmd, dir='', pipes={}, env={}, ssh_args='', expected_return=0, timeout=0 ):
         """Execute a command on the remote host, return std[err|out] and exit code.
         Use this method instead of SSHRPC._exec().
         
@@ -241,7 +241,7 @@ class SSHRPC(object):
             {'stderr': 'bash: tacoburritosalsa: command not found\\n', 'stdout': ''}
         
         """
-        self.logger.debug( "cmd=%s dir=%s pipes=%s env=%s ssh_args=%s expected_return=%s timeout=%s " % (cmd, dir, pipes, repr( env ), ssh_args, expected_return, timeout) )
+        self.logger.debug( "dir=%s env=%s ssh_args=%s expected_return=%s" % (dir, repr( env ), ssh_args, expected_return) )
         vardeclarations = [ ( '%s=%s' % ( var, self.shesc( env[ var ] ) ) ) for var in env ]
         envdeclaration  = ' '.join( vardeclarations )
         if dir:
@@ -255,9 +255,10 @@ class SSHRPC(object):
         ssh_cmd.extend( [ self.host, cmd ] )
         result = self._exec( cmd=ssh_cmd, pipes=pipes, timeout=timeout )
         self.logger.debug( "result=%s" % (result) )
-        if not result == expected_return:
+        if result == expected_return:
+            return True
+        else:
             raise Exception, "Command did not return %s. result=%s ssh_cmd='%s'" % (expected_return,result,ssh_cmd)
-        return result
     
     
     def _setup_ssh( self ):
@@ -450,7 +451,7 @@ class SSHRPC(object):
         self.logger.debug( "options=%s" % (options) )
         _return = ''
         _std = {}
-        if self.execute( cmd='uname %s' % (options), pipes=_std) == 0:
+        if self.execute( cmd='uname %s' % (options), pipes=_std):
             _return = _std['stdout'].rstrip()
         self.logger.debug( "_return=%s" % (_return) )
         return _return
@@ -469,13 +470,13 @@ class SSHRPC(object):
         """
         if not 'linux' in self.distro and 'hostOS' in self.platform and self.platform['hostOS'].lower().find("linux") > -1:
             _std = {}
-            if self.execute(cmd="lsb_release -d",pipes=_std) == 0: 
+            if self.execute(cmd="lsb_release -d",pipes=_std): 
                 self.distro['description'] = _std['stdout'].rstrip().split('Description:\t')[-1]
-            if self.execute(cmd="lsb_release -r",pipes=_std) == 0: 
+            if self.execute(cmd="lsb_release -r",pipes=_std): 
                 self.distro['release'] = _std['stdout'].rstrip().split('Release:\t')[-1]
-            if self.execute(cmd="[ -f /etc/debian_version ]") == 0:
+            if self.execute(cmd="[ -f /etc/debian_version ]"):
                 self.distro['linux'] = 'debian'
-            elif self.execute(cmd="[ -f /etc/redhat-release ]") == 0:
+            elif self.execute(cmd="[ -f /etc/redhat-release ]"):
                 self.distro['linux'] = 'redhat'
         self.logger.debug("self.distro=%s" % (self.distro))
         return self.distro
@@ -519,7 +520,7 @@ class SSHRPC(object):
                 self.platform['hostArch'] = self.uname('-m')
             # sunos needs a little more love
             if self.platform['hostOS'] == "SunOS" and self.platform['hostArch'] == "i386":
-                if self.execute( cmd='/usr/bin/isainfo -k', pipes=_std ) == 0:
+                if self.execute( cmd='/usr/bin/isainfo -k', pipes=_std ):
                     self.platform['hostArch'] = _std['stdout'].rstrip()
             # lets globally say we're windows
             if self.platform['hostOS'].lower().find('cygwin') > -1:
@@ -620,7 +621,7 @@ class SSHRPC(object):
             return self.home
         else:
             _std = {}
-            if self.execute( '[ -d $HOME ] && echo $HOME', pipes=_std ) == 0 and _std['stdout']:
+            if self.execute( '[ -d $HOME ] && echo $HOME', pipes=_std ) and _std['stdout']:
                 self.home = _std['stdout'].rstrip()
         self.logger.debug( "self.home=%s" % (self.home,) )
         return self.home
@@ -628,8 +629,8 @@ class SSHRPC(object):
         
     def python( self, program ):
         _std = {}
-        returnCode = self.execute( cmd='python -c "import os,sys;%s"' % program, pipes=_std )
-        return ( returnCode, _std )
+        return_code = self.execute( cmd='python -c "import os,sys;%s"' % program, pipes=_std )
+        return ( return_code, _std )
     
     
     def path_exists( self, path ):
@@ -646,10 +647,11 @@ class SSHRPC(object):
     
 
     def file_copy( self, src, dest ):
-        if self.execute( cmd="cp %s %s" % (src,dest), pipes={} ) == 0:
-            return True
-        else:
-            return False
+        return self.execute( cmd="cp %s %s" % (src,dest) )    
+    
+    
+    def file_move( self, src, dest ):
+        return self.execute( cmd="mv %s %s" % (src,dest) )
     
     
     def file_retrieve( self, source, dest ):
@@ -664,6 +666,22 @@ class SSHRPC(object):
         if not self.path_exists( remoteFile ):
             raise Exception, "Destination file %s doesn't exist on %s" % (finalDest,self.host)
         return remoteFile
+    
+    
+    def safe_remove( self, path ):
+        rm_path = "_".join( ( path,'RM' ) )
+        if self.path_exists( path ):
+            self.file_move( src=path, dest=rm_path )
+        if self.path_exists( rm_path ):
+            self.execute( "rm -rf %s" % rm_path, pipes={} )
+        if not self.path_exists( path ) and not self.path_exists( rm_path ):
+            return True
+        else:
+            return False
+    
+    
+    def os_makedirs( self, path ):
+        return self.python( program="os.makedirs( '%s' )" % path )
     
 
 if __name__ == "__main__":
